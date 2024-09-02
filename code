@@ -1,0 +1,141 @@
+from selenium import webdriver
+from time import sleep
+from webdriver_manager.chrome import ChromeDriverManager
+from selenium.webdriver.common.by import By
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.common.keys import Keys
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+
+# Get user input for credentials and message
+usr = input("Enter your Instagram username: ")
+pas = input("Enter your Instagram password: ")
+message_to_send = input("Enter the message to send: ")
+
+# Configure Chrome options
+chrome_options = Options()
+chrome_options.add_argument("--disable-notifications")
+
+# Initialize the Chrome driver
+driver = webdriver.Chrome(ChromeDriverManager().install(), options=chrome_options)
+print("Chrome opened")
+driver.get('https://www.instagram.com/')
+print("Instagram opened")
+sleep(5)
+
+# Log in to Instagram
+usrname_box = WebDriverWait(driver, 20).until(
+    EC.presence_of_element_located((By.NAME, 'username'))
+)
+usrname_box.send_keys(usr)
+password_box = driver.find_element(By.NAME, 'password')
+password_box.send_keys(pas)
+login_button = driver.find_element(By.XPATH, '//*[@id="loginForm"]/div/div[3]/button/div')
+login_button.click()
+sleep(5)
+
+# Handle the "Save Your Login Info?" pop-up if it appears
+try:
+    not_now_button = WebDriverWait(driver, 10).until(
+        EC.element_to_be_clickable((By.XPATH, '//button[text()="Not Now"]'))
+    )
+    not_now_button.click()
+    print("Clicked 'Not Now' on save login info prompt")
+except:
+    print("Save login info prompt not found")
+
+# Handle the "Turn on Notifications" pop-up if it appears
+try:
+    not_now_button = WebDriverWait(driver, 10).until(
+        EC.element_to_be_clickable((By.XPATH, '//button[text()="Not Now"]'))
+    )
+    not_now_button.click()
+    print("Clicked 'Not Now' on turn on notifications prompt")
+except:
+    print("Turn on notifications prompt not found")
+
+# Go to Direct Messages
+dm_button = WebDriverWait(driver, 20).until(
+    EC.element_to_be_clickable((By.XPATH, '//a[contains(@href, "/direct/inbox/")]'))
+)
+dm_button.click()
+print("Direct Messages opened")
+sleep(5)
+
+# Function to scroll down and load more conversations
+def scroll_down():
+    try:
+        conversation_container = WebDriverWait(driver, 20).until(
+            EC.presence_of_element_located((By.XPATH, '//div[@role="dialog"]//div[@aria-label="Conversations"]'))
+        )
+        driver.execute_script("arguments[0].scrollTop = arguments[0].scrollHeight", conversation_container)
+        sleep(3)
+        print("Scrolled down to load more conversations.")
+    except Exception as e:
+        print(f"Error during scrolling: {e}")
+
+# Function to scroll and load all conversations
+def load_all_conversations():
+    last_height = driver.execute_script("return document.body.scrollHeight")
+    while True:
+        # Scroll down to load more conversations
+        driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+        sleep(3)
+        
+        # Calculate new scroll height and compare with last scroll height
+        new_height = driver.execute_script("return document.body.scrollHeight")
+        if new_height == last_height:
+            break  # Exit if we have reached the bottom of the page
+        last_height = new_height
+
+# Function to get all conversation threads
+def get_conversation_threads():
+    try:
+        # Updated XPath to locate all conversation threads
+        threads = driver.find_elements(By.XPATH, '//a[contains(@href, "/direct/t/")]')
+        print(f"Found {len(threads)} conversation threads.")
+        return threads
+    except Exception as e:
+        print(f"Error finding conversation threads: {e}")
+        return []
+
+# Load all conversations by scrolling down
+load_all_conversations()
+
+# Send message to each conversation
+conversation_threads = get_conversation_threads()
+
+if not conversation_threads:
+    print("No conversations found. Please check if you have any messages or if the script needs further adjustment.")
+else:
+    for index, thread in enumerate(conversation_threads):
+        try:
+            thread.click()
+            print(f"Opened conversation {index + 1}")
+            sleep(3)
+            
+            # Find the message input box and send the message
+            message_box = WebDriverWait(driver, 10).until(
+                EC.presence_of_element_located((By.XPATH, '//textarea[@placeholder="Message..."]'))
+            )
+            message_box.click()
+            message_box.send_keys(message_to_send)
+            sleep(1)
+            message_box.send_keys(Keys.ENTER)
+            print(f"Message sent to conversation {index + 1}")
+            sleep(3)
+            
+            # Go back to the inbox to continue with the next thread
+            back_button = WebDriverWait(driver, 10).until(
+                EC.element_to_be_clickable((By.XPATH, '//a[contains(@href, "/direct/inbox/")]'))
+            )
+            back_button.click()
+            sleep(3)
+            
+        except Exception as e:
+            print(f"Error with conversation {index + 1}: {e}")
+            driver.refresh()
+            sleep(5)
+
+print("All messages sent successfully.")
+driver.quit()
